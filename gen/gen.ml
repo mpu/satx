@@ -136,6 +136,8 @@ let sat f =
   in
   sat (vars f) SMap.empty
 
+(* tauto f = true IFF forall asn, eval asn (Not f) = false
+                  IFF forall asn, eval asn f = true *)
 let tauto f = not (sat (Not f))
 
 (* assuming f is (A ? B), generate a formula equivalent
@@ -215,7 +217,7 @@ let () = if runtests then begin
   Format.eprintf "%a@." Fmt.pf (defcnf f);
 end
 
-module Ramsey = struct
+module Utils = struct
   let allsets k l =
     let ll = length l in
     if k > ll then invalid_arg "allsets";
@@ -233,11 +235,19 @@ module Ramsey = struct
 
   let rec (--) i j = if i < j then i :: ((i + 1) -- j) else []
 
+  let rec ( **) l1 l2 =
+    match l1 with
+    | [] -> []
+    | x :: l1 -> rev_append (map (fun y -> (x,y)) l2) (l1 ** l2)
+
   let () = if runtests then begin
-    Format.printf "@[<h>%a@]@."
-      (Fmt.list (fun fmt -> Format.fprintf fmt "(%a)" (Fmt.list Format.pp_print_int)))
-      (allsets 2 (1 -- 5));
+    let c36 = allsets 3 (1 -- 7) in
+    assert (List.length (List.sort_uniq compare c36) = 20);
   end 
+end
+
+module Ramsey = struct
+  open Utils
 
   let gen s t n =
     let verts = 1 -- (n + 1) in
@@ -248,13 +258,47 @@ module Ramsey = struct
       | _ -> assert false
     in
     Or (list_or (map (fun l -> list_and @@ map e l) yesgrps),
-        list_or (map (fun l -> list_and @@ map e l) nogrps))
+        list_or (map (fun l -> list_and @@ map (fun x -> Not (e x)) l) nogrps))
 
   let () = if runtests then begin
-    Format.printf "ramsey 3 3 4 = %a@." Fmt.pf (gen 3 3 4);
-    (* Format.printf "cnf: %a@." Fmt.pf (defcnf (gen 3 3 4)); *)
+    assert (not (tauto (gen 3 3 5)));
+    assert (tauto (gen 3 3 6));
   end
 end
 
-module Pigeonhole = struct
+module Pigeon = struct
+  open Utils
+
+  let gen k n =
+    let holes = 1 -- (n + 1) in
+    let things = 1 -- (k + 1) in
+    let vin t h = Var (Printf.sprintf "in_%d_%d" t h) in
+    let eachthinginahole = map (fun t -> list_or (map (vin t) holes)) things in
+    let atmostonehole =
+      map (fun t ->
+            map (function [h1;h2] -> Not (And (vin t h1, vin t h2))
+                        | _ -> assert false)
+                (allsets 2 holes) |> list_and) things in
+    let onethingperhole =
+      map (fun h ->
+            map (function [t1;t2] -> Not (And (vin t1 h, vin t2 h))
+                        | _ -> assert false)
+              (allsets 2 things) |> list_and) holes in
+    list_and [
+      list_and eachthinginahole;
+      list_and atmostonehole;
+      list_and onethingperhole
+    ]
+
+  let () = if runtests then begin
+    let p22 = gen 2 2 in
+    let p32 = gen 3 2 in
+    let p44 = gen 4 4 in
+    let p54 = gen 5 4 in
+    Format.printf "pigeon 3 2: %a@." Fmt.pf p32;
+    assert (sat p22);
+    assert (not (sat p32));
+    assert (sat p44);
+    assert (not (sat p54));
+  end
 end
