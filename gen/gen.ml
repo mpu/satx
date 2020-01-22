@@ -181,7 +181,7 @@ let () = if runtests then begin
 end
 
 let mk_var n =
-  n + 1, Var ("v_" ^ (string_of_int n))
+  n + 1, Var ("#_" ^ (string_of_int n))
 
 (* returns the definitional cnf form *)
 let rec defcnf n defs f =
@@ -244,7 +244,29 @@ module Utils = struct
     let c36 = allsets 3 (1 -- 7) in
     assert (List.length (List.sort_uniq compare c36) = 20);
   end 
+
+  let conjoin f l = list_and (map f l)
 end
+
+let print_dimacs file f =
+  let vars, _ =
+    SSet.fold (fun v (vars, n) ->
+        (SMap.add v n vars, n+1))
+      (vars f)
+      (SMap.empty, 1)
+  in
+  let clauses = conjuncts f in
+  Printf.fprintf file "p cnf %d %d\n"
+    (SMap.cardinal vars) (List.length clauses);
+  let print_lit = function
+    | Not (Var v) -> Printf.fprintf file "-%d " (SMap.find v vars)
+    | Var v -> Printf.fprintf file "%d " (SMap.find v vars)
+    | _ -> invalid_arg "formula not in cnf"
+  in
+  List.iter (fun c ->
+      List.iter print_lit (disjuncts c);
+      Printf.fprintf file "0\n")
+    clauses
 
 module Ramsey = struct
   open Utils
@@ -283,7 +305,7 @@ module Pigeon = struct
       map (fun h ->
             map (function [t1;t2] -> Not (And (vin t1 h, vin t2 h))
                         | _ -> assert false)
-              (allsets 2 things) |> list_and) holes in
+                (allsets 2 things) |> list_and) holes in
     list_and [
       list_and eachthinginahole;
       list_and atmostonehole;
@@ -295,10 +317,92 @@ module Pigeon = struct
     let p32 = gen 3 2 in
     let p44 = gen 4 4 in
     let p54 = gen 5 4 in
-    Format.printf "pigeon 3 2: %a@." Fmt.pf p32;
+    Format.eprintf "pigeon 3 2: %a@." Fmt.pf p32;
     assert (sat p22);
     assert (not (sat p32));
     assert (sat p44);
     assert (not (sat p54));
   end
+end
+
+module Bitfns = struct
+  open Utils
+
+  (* full adder *)
+  let fa x y z s c =
+    let xor a b = Iff (a, Not b) in
+    And (Iff (s, xor x (xor y z)),
+         Iff (c, Or (And (x,y), Or (And (y,z), And (x,z)))))
+
+  let shift n f m = f (n+m)
+
+  let name s i = Var (s ^ "_" ^ string_of_int i)
+
+  (* adder, n bits *)
+  let ripplecarry n x y c out =
+    conjoin (fun i -> fa (x i) (y i) (c i) (out i) (c (i+1))) (0 -- n)
+
+  (* feed 0 as input carry *)
+  let ripplecarry0 n x y c out =
+    rmlit (ripplecarry n x y (fun i -> if i = 0 then False else c i) out)
+
+  (* feed 1 as input carry *)
+  let ripplecarry1 n x y c out =
+    rmlit (ripplecarry n x y (fun i -> if i = 0 then True else c i) out)
+
+  (* multiplex = {a if sel=0; b if sel=1} *)
+  let mux sel a b =
+    Or (And (Not sel, a), And (sel, b))
+
+  (* adder on n bits, blocks of k bits in parallel
+     x, y, (c 0)     the summands
+     c0, c1, s0, s1  temporary storage
+     (c (n+1))       the outgoing carry
+     s               the sum
+  *)
+  let rec carryselect (n,k) x y c0 c1 s0 s1 c s =
+    let k' = min n k in
+    let fm =
+      And (And (ripplecarry0 k' x y c0 s0, ripplecarry1 k' x y c1 s1),
+           And (Iff (c k', mux (c 0) (c0 k') (c1 k')),
+                conjoin (fun i -> Iff (s i, mux (c 0) (s0 i) (s1 i)))
+                        (0 -- k)))
+    in
+    if n <= k' then fm else
+    And (fm, carryselect
+           (n-k, k) (shift k x) (shift k y) (shift k c0) (shift k c1)
+           (shift k s0) (shift k s1) (shift k c) (shift k s))
+end
+
+module AdderEquiv = struct
+  open Utils
+  open Bitfns
+
+  (* should produce only unsatisfiable formulas;
+     it's amazing that this poses absolutely zero challenge to SAT
+     solvers! *)
+  let gen k n =
+    let x, y, cs, cr, c0, c1, s0, s1, ss, sr =
+      name "x", name "y", name "cs", name "cr", name "c0", name "c1",
+      name "s0", name "s1", name "ss", name "sr"
+    in
+    And (
+      list_and [
+        ripplecarry n x y cr sr;
+        carryselect (n,k) x y c0 c1 s0 s1 cs ss;
+        Iff (cs 0, cr 0)
+      ],
+      Not (And (conjoin (fun i -> Iff (sr i, ss i)) (0 -- n),
+                Iff (cs n, cr n)))
+    )
+
+  let () = if runtests then begin
+    Format.eprintf "adder 1 2: %a@." Fmt.pf (gen 1 2);
+    assert (not (sat (gen 1 1)));
+    assert (not (sat (gen 2 2)));
+  end
+end
+
+let () = if true then begin
+  print_dimacs stdout (AdderEquiv.gen 10 128 |> defcnf)
 end
