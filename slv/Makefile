@@ -1,5 +1,5 @@
 SAN = -fsanitize=address -fsanitize=undefined
-CFLAGS = $(SAN) -g -Wall -O2 -std=c99
+CFLAGS = $(SAN) -g -Wall -O0 -std=c99
 LDFLAGS = $(SAN)
 CC = clang
 

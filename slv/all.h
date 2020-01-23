@@ -3,6 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#define Pos(v) (2*(v) + 1)
+#define Neg(v) (2*(v))
+#define Flip(l) ((l) ^ 1)
+#define Var(l) ((l) >> 1)
+
+typedef unsigned char uchr;
 typedef unsigned int uint;
 typedef unsigned long long ulng;
 

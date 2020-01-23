@@ -34,7 +34,7 @@ indimacs(FILE *f, Cls **pcls, uint *pncls, uint *pnvar)
 	cls = vnew(ncls, sizeof *cls);
 	cur = cls;
 	end = &cls[ncls];
-	while (cur != end) {
+	while (cur<end) {
 		cur->lit = vnew(5, sizeof (uint));
 		nlit = 0;
 		for (;;) {
@@ -44,9 +44,9 @@ indimacs(FILE *f, Cls **pcls, uint *pncls, uint *pnvar)
 			if (l == 0)
 				break;
 			if (l < 0)
-				cur->lit[nlit] = 2*(-l) + 1;
+				cur->lit[nlit] = Neg(-l);
 			else
-				cur->lit[nlit] = 2*l;
+				cur->lit[nlit] = Pos(l);
 			nlit++;
 		}
 		cur->nlit = nlit;
