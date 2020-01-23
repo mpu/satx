@@ -6,6 +6,7 @@ typedef struct Var Var;
 typedef struct Lit Lit;
 
 struct Var {
+	uchr trl : 1; /* 1 iff in the trail */
 	uchr set : 1; /* 1 iff the variable is currently assigned */
 	uchr val : 1; /* assigned truth value */
 };
@@ -118,6 +119,7 @@ idpll:
 		next = (next+1) % nvar;
 	} while (var[v].set);
 	n = level++;
+	var[v].trl = 1;
 	if (lit[Pos(v)].ncls == 0)
 		/* no clause contains the positive,
 		 * assign the variable to false */
@@ -132,6 +134,7 @@ idpll:
 unit:
 	for (; n<level; n++) {
 		x = GetLit(trail[n]);
+		assert(var[Var(x)].trl);
 		printf("unit prop (lit: %s%u (%s))\n",
 			DBG(x), IsChoice(trail[n]) ? "chosen" : "deduced");
 		/* update the watch literal of
@@ -174,11 +177,13 @@ unit:
 			 * unassigned literal of the clause;
 			 * if so, deduce its truth */
 		search:
-			if (y == Flip(x))
-				continue;
 			for (;;) {
 				if (++l == lend) {
-					trail[level++] = Deduce(y);
+					v = Var(y);
+					if (!var[v].trl) {
+						var[v].trl = 1;
+						trail[level++] = Deduce(y);
+					}
 					break;
 				}
 				v = Var(*l);
@@ -203,7 +208,6 @@ unit:
 				continue;
 			if (var[Var(*l)].set) {
 				/* already good */
-				printf(" %s%u (%d)\n", DBG(*l), var[Var(*l)].val);
 				assert(var[Var(*l)].val == (*l&1));
 				continue;
 			}
@@ -227,10 +231,12 @@ conflict:
 		}
 		n = trail[--level];
 		v = Var(GetLit(n));
+		var[v].trl = 0;
 		var[v].set = 0;
 		if (IsChoice(n)) {
 			/* revert the choice */
 			n = level++;
+			var[v].trl = 1;
 			trail[n] = Deduce(Neg(v));
 			goto unit;
 		}
