@@ -62,6 +62,7 @@ int main()
 	Cls *pc;
 
 	/* 1. read in dimacs */
+	/* todo: make sure literals appear once per clause */
 	if (!indimacs(stdin, &cls, &ncls, &nvar))
 		die("could not parse dimacs");
 	printf("input %u clauses and %u variables\n", ncls, nvar);
@@ -116,44 +117,46 @@ idpll:
 		v = prm[next];
 		next = (next+1) % nvar;
 	} while (var[v].set);
-	var[v].set = 1;
-	if (lit[Pos(v)].ncls == 0) {
+	n = level++;
+	if (lit[Pos(v)].ncls == 0)
 		/* no clause contains the positive,
 		 * assign the variable to false */
-		var[v].val = 0;
-		n = level++;
 		trail[n] = Deduce(Neg(v));
-	} else {
+	else if (lit[Neg(v)].ncls == 0)
+		trail[n] = Deduce(Pos(v));
+	else
 		/* assign to true by default */
-		var[v].set = 1;
-		var[v].val = 1;
-		n = level++;
 		trail[n] = Choose(Pos(v));
-	}
-	/* unit propagate the choice */
 
+	/* unit propagate the choice */
 unit:
 	for (; n<level; n++) {
+		x = GetLit(trail[n]);
+		printf("unit prop (lit: %s%u (%s))\n",
+			DBG(x), IsChoice(trail[n]) ? "chosen" : "deduced");
 		/* update the watch literal of
 		 * all the clauses containing
 		 * the negation of the chosen
 		 * literal */
-		x = GetLit(trail[n]);
-		printf("unit prop (lit: %s%u (%s))\n",
-			DBG(x), IsChoice(trail[n]) ? "chosen" : "deduced");
 		x = Flip(x);
 		pl = &lit[x];
 		c = pl->cls;
 		cend = &c[pl->ncls];
 		for (; c<cend; c++) {
+			if (0) printf("looking at clause %u\n", *c);
 			pc = &cls[*c];
 			l = pc->lit;
 			lend = &l[pc->nlit];
-			if (*l != x)
-				/* the watch is good; go find
-				 * if it's the only literal
-				 * left if it is unassigned */
-				goto search;
+			if (*l != x) {
+				/* the watch is good; if it is
+				 * unassigned, go find if it's
+				 * the only literal left */
+				y = *l;
+				if (!var[Var(y)].set)
+					goto search;
+				assert(var[Var(y)].val == (y&1));
+				continue;
+			}
 			/* find another watch */
 			for (;;) {
 				if (++l == lend)
@@ -161,7 +164,7 @@ unit:
 					goto conflict;
 				y = *l;
 				v = Var(y);
-				if (y == Flip(x) || !var[v].set)
+				if (!var[v].set)
 					break;
 				assert(var[v].val == !(y&1));
 			}
@@ -171,23 +174,17 @@ unit:
 			 * unassigned literal of the clause;
 			 * if so, deduce its truth */
 		search:
-			if (var[Var(*l)].set) {
-				/* if the literal is set, it must
-				 * be true; and the clause is sat */
-				assert(var[Var(*l)].val == (*l&1));
+			if (y == Flip(x))
 				continue;
-			}
 			for (;;) {
 				if (++l == lend) {
-					/* FIXME: invariant broken */
-					trail[level++] = Choose(y);
-					var[v].set = 1;
-					var[v].val = (y&1);
+					trail[level++] = Deduce(y);
 					break;
 				}
-				if (!var[Var(*l)].set)
+				v = Var(*l);
+				if (!var[v].set && *l != x)
 					break;
-				assert(var[Var(*l)].val == !(*l&1));
+				assert(*l == x || var[v].val == !(*l&1));
 			}
 		}
 		/* mark all clauses containing x
@@ -201,8 +198,11 @@ unit:
 			pc = &cls[*c];
 			l = pc->lit;
 			lend = &l[pc->nlit];
+			if (*l == x)
+				/* already good */
+				continue;
 			if (var[Var(*l)].set) {
-				/* already marked sat */
+				/* already good */
 				printf(" %s%u (%d)\n", DBG(*l), var[Var(*l)].val);
 				assert(var[Var(*l)].val == (*l&1));
 				continue;
@@ -212,6 +212,10 @@ unit:
 			*l = pc->lit[0];
 			pc->lit[0] = x;
 		}
+		/* finally, mark the variable as set! */
+		v = Var(x);
+		var[v].set = 1;
+		var[v].val = (x&1);
 	}
 	goto idpll;
 
@@ -223,16 +227,13 @@ conflict:
 		}
 		n = trail[--level];
 		v = Var(GetLit(n));
-		assert(var[v].set);
+		var[v].set = 0;
 		if (IsChoice(n)) {
 			/* revert the choice */
-			assert(var[v].val == 1);
-			var[v].val = 0;
 			n = level++;
 			trail[n] = Deduce(Neg(v));
 			goto unit;
 		}
-		var[v].set = 0;
 	}
 
 	return 0;
