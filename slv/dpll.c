@@ -151,14 +151,11 @@ unit:
 			l = pc->lit;
 			lend = &l[pc->nlit];
 			if (*l != x) {
-				/* the watch is good; if it is
-				 * unassigned, go find if it's
-				 * the only literal left */
+				/* the watch is good; go find
+				 * if it's the only literal
+				 * left */
 				y = *l;
-				if (!var[Var(y)].set)
-					goto search;
-				assert(var[Var(y)].val == (y&1));
-				continue;
+				goto search;
 			}
 			/* find another watch */
 			for (;;) {
