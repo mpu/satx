@@ -177,13 +177,15 @@ unit:
 			 * unassigned literal of the clause;
 			 * if so, deduce its truth */
 		search:
+			if (var[Var(y)].trl)
+				/* the variable is already in the
+				 * trail, so we should not add it
+				 * anyway */
+				continue;
 			for (;;) {
 				if (++l == lend) {
-					v = Var(y);
-					if (!var[v].trl) {
-						var[v].trl = 1;
-						trail[level++] = Deduce(y);
-					}
+					var[Var(y)].trl = 1;
+					trail[level++] = Deduce(y);
 					break;
 				}
 				v = Var(*l);
