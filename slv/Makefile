@@ -4,6 +4,9 @@ LDFLAGS = $(SAN)
 
 all: dpll
 
+test: all
+	@./test.sh
+
 clean:
 	rm -f *.o dpll
 
@@ -13,4 +16,4 @@ dpll: util.o dimacs.o dpll.o
 %.o: %.c all.h
 	$(CC) $(CFLAGS) -c $<
 
-.PHONE: all clean
+.PHONE: all test clean
