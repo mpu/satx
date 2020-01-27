@@ -29,8 +29,9 @@ indimacs(FILE *f, Cls **pcls, uint *pncls, uint *pnvar)
 
 	while (skipc(f))
 		;
-	if (fscanf(f, "p cnf %u %u ", &nvar, &ncls) != 2)
+	if (fscanf(f, "p cnf %*u %u ", &ncls) != 1)
 		return 0;
+	nvar = 0;
 	cls = vnew(ncls, sizeof *cls);
 	cur = cls;
 	end = &cls[ncls];
@@ -43,10 +44,13 @@ indimacs(FILE *f, Cls **pcls, uint *pncls, uint *pnvar)
 			vgrow(&cur->lit, nlit+1);
 			if (l == 0)
 				break;
-			if (l < 0)
-				cur->lit[nlit] = Neg(-l);
-			else
+			if (l < 0) {
+				l = -l;
+				cur->lit[nlit] = Neg(l);
+			} else
 				cur->lit[nlit] = Pos(l);
+			if (nvar <= l)
+				nvar = l+1;
 			nlit++;
 		}
 		cur->nlit = nlit;

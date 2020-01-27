@@ -68,9 +68,6 @@ int main()
 		die("could not parse dimacs");
 	printf("input %u clauses and %u variables\n", ncls, nvar);
 
-	/* FIX THIS SHIT */
-	nvar++;
-
 	/* 2. preprocess clauses */
 	/* todo: filter clauses already known to be true
 	 * and return unsat if a clause is empty */
