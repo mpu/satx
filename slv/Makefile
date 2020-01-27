@@ -1,6 +1,7 @@
-SAN = -fsanitize=address -fsanitize=undefined
-CFLAGS = $(SAN) -g -Wall -O0 -std=c99
-LDFLAGS = $(SAN)
+OPT = -fsanitize=address -fsanitize=undefined -O0 -g
+#OPT = -DNDEBUG -O3
+CFLAGS = $(OPT) -Wall -std=c99
+LDFLAGS = $(OPT)
 
 all: dpll
 

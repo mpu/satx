@@ -54,7 +54,8 @@ uint level;  /* if level>0; trail[level-1] is the last set literal */
 #define IsChoice(t) ((t) & 1)
 #define GetLit(t)   ((t) >> 1)
 
-int main()
+int
+main()
 {
 	uint *l, *lend;
 	uint v, n, r, x, y, t;
@@ -96,8 +97,11 @@ int main()
 	for (n=0; n<nvar; n++)
 		prm[n] = n;
 	srand(42);
-/* rnd: */
-	for (n=0; 0 && n<nvar; n++) {
+#ifndef NDEBUG
+	if (0) {
+#else
+	for (n=0; n<nvar; n++) {
+#endif
 		r = rand() % (nvar - n);
 		t = prm[r];
 		prm[r] = prm[n];
@@ -132,8 +136,10 @@ unit:
 	for (; n<level; n++) {
 		x = GetLit(trail[n]);
 		assert(var[Var(x)].trl);
+#ifndef NDEBUG
 		printf("unit prop (lit: %s%u (%s))\n",
 			DBG(x), IsChoice(trail[n]) ? "chosen" : "deduced");
+#endif
 		/* update the watch literal of
 		 * all the clauses containing
 		 * the negation of the chosen
