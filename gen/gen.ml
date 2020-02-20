@@ -1,6 +1,6 @@
 open List
 
-let runtests = true
+let runtests = false
 
 module SMap = struct
   include Map.Make(String)
@@ -21,13 +21,19 @@ type pf =
   | Imp of pf * pf
   | Iff of pf * pf
 
-let rec disjuncts = function
-  | Or (f1, f2) -> disjuncts f1 @ disjuncts f2
-  | f -> [f]
+let rec on_disjuncts f fn acc =
+  match f with
+  | Or (f1, f2) -> on_disjuncts f2 fn (on_disjuncts f1 fn acc)
+  | _ -> fn f acc
 
-let rec conjuncts = function
-  | And (f1, f2) -> conjuncts f1 @ conjuncts f2
-  | f -> [f]
+let disjuncts f = on_disjuncts f (fun a b -> a :: b) []
+
+let rec on_conjuncts f fn acc =
+  match f with
+  | And (f1, f2) -> on_conjuncts f2 fn (on_conjuncts f1 fn acc)
+  | _ -> fn f acc
+
+let conjuncts f = on_conjuncts f (fun a b -> a :: b) []
 
 module Fmt = struct
   open Format
@@ -117,12 +123,17 @@ let rec eval asn = function
   | Imp (f1, f2) -> not (eval asn f1) || eval asn f2
   | Iff (f1, f2) -> eval asn f1 = eval asn f2
 
-let rec vars = function
-  | Var v -> SSet.singleton v
-  | f ->
-    let res = ref SSet.empty in
-    ignore (pfmap (fun x -> res := SSet.union !res (vars x); x) f);
-    !res
+let rec vars acc = function
+  | Var v -> SSet.add v acc
+  | True | False -> acc
+  | Not f -> vars acc f
+  | And (f1, f2)
+  | Or (f1, f2)
+  | Imp (f1, f2)
+  | Iff (f1, f2) ->
+    vars (vars acc f1) f2
+
+let vars = vars SSet.empty
 
 (* recursive sat algorithm *)
 let sat f =
@@ -209,7 +220,7 @@ let defcnf f =
     not (exists (fun lit -> mem (mk_not lit) disj) disj)
   in
   let clauses = filter non_trivial clauses in
-  fold_left mk_and fa clauses
+  fold_left (fun a b -> mk_and b a) fa clauses
 
 let () = if runtests then begin
   let p, q, r, s = Var "p", Var "q", Var "r", Var "s" in
@@ -255,18 +266,17 @@ let print_dimacs file f =
       (vars f)
       (SMap.empty, 1)
   in
-  let clauses = conjuncts f in
-  Printf.fprintf file "p cnf %d %d\n"
-    (SMap.cardinal vars) (List.length clauses);
+  let nconj = on_conjuncts f (fun _ n -> n + 1) 0 in
+  Printf.fprintf file "p cnf %d %d\n" (SMap.cardinal vars) nconj;
   let print_lit = function
     | Not (Var v) -> Printf.fprintf file "-%d " (SMap.find v vars)
     | Var v -> Printf.fprintf file "%d " (SMap.find v vars)
     | _ -> invalid_arg "formula not in cnf"
   in
-  List.iter (fun c ->
+  on_conjuncts f (fun c () ->
       List.iter print_lit (disjuncts c);
       Printf.fprintf file "0\n")
-    clauses
+    ()
 
 module Ramsey = struct
   open Utils
@@ -403,6 +413,17 @@ module AdderEquiv = struct
   end
 end
 
-let () = if true then begin
-  print_dimacs stdout (AdderEquiv.gen 10 128 |> defcnf)
+let () = if false then begin
+    let l = Utils.(--) 2 100 in
+    List.iter
+      (fun k ->
+         List.iter
+           (fun n ->
+              let oc = open_out (Printf.sprintf "php/php_%03d_%03d.%s"
+                                   k n (if k <= n then "sat" else "uns")) in
+              Printf.printf "pig %d %d\n%!" k n;
+              print_dimacs oc (Pigeon.gen k n |> defcnf);
+              close_out oc)
+           l)
+      l
 end
