@@ -15,7 +15,7 @@ def write_dimacs_to(n_vars, iclauses, out_filename):
 
 def mk_out_filename(opts, n_vars, t):
     prefix = "%s/sr_n=%.4d_ncm=%.2f_ncs=%.2f_t=%.4d" % \
-            (opts.out_dir, opts.nc_m, opts.nc_s, n_vars, t)
+            (opts.out_dir, n_vars, opts.nc_m, opts.nc_s, t)
     return "%s.dimacs" % prefix
 
 def generate_k_iclause(n, k):
@@ -42,7 +42,9 @@ if __name__ == "__main__":
     parser.add_argument('--max_n', action='store', dest='max_n', type=int, default=10)
 
     # mean and standard deviation for #clauses / #literals
-    parser.add_argument('--nc_mean', action='store', dest='nc_m', type=float, default=4.2)
+    # maximal hardness is theoretically around 4.26; I've observed that
+    # using 5 gives roughly 50% SAT 50% UNSAT
+    parser.add_argument('--nc_mean', action='store', dest='nc_m', type=float, default=5)
     parser.add_argument('--nc_stdv', action='store', dest='nc_s', type=float, default=0.2)
 
     parser.add_argument('--py_seed', action='store', dest='py_seed', type=int, default=None)
