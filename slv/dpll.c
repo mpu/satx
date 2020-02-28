@@ -55,60 +55,14 @@ uint level;  /* if level>0; trail[level-1] is the last set literal */
 #define GetLit(t)   ((t) >> 1)
 
 int
-main()
+idpll(uint *mems)
 {
 	uint *l, *lend;
-	uint v, n, r, x, y, t;
+	uint v, n, x, y;
 	uint *c, *cend;
 	Lit *pl;
 	Cls *pc;
 
-	/* 1. read in dimacs */
-	/* todo: make sure literals appear once per clause */
-	if (!indimacs(stdin, &cls, &ncls, &nvar))
-		die("could not parse dimacs");
-	printf("input %u clauses and %u variables\n", ncls, nvar);
-
-	/* 2. preprocess clauses */
-	/* todo: filter clauses already known to be true
-	 * and return unsat if a clause is empty */
-
-	/* 3. populate data structures */
-	nlit = 2*nvar;
-	lit = calloc(nlit, sizeof *lit);
-	if (!lit)
-		die("out of mem");
-	for (n=0; n<nlit; n++)
-		lit[n].cls = vnew(4, sizeof *lit[n].cls);
-	for (n=0; n<ncls; n++) {
-		l = cls[n].lit;
-		lend = &l[cls[n].nlit];
-		for (; l<lend; l++) {
-			pl = &lit[*l];
-			vgrow(&pl->cls, pl->ncls+1);
-			pl->cls[pl->ncls++] = n;
-		}
-	}
-	trail = calloc(nvar, sizeof *trail);
-	var = calloc(nvar, sizeof *var);
-
-	/* generate a random-ish permutation of the vars */
-	prm = calloc(nvar, sizeof *prm);
-	for (n=0; n<nvar; n++)
-		prm[n] = n;
-	srand(42);
-#ifndef NDEBUG
-	if (0) {
-#else
-	for (n=0; n<nvar; n++) {
-#endif
-		r = rand() % (nvar - n);
-		t = prm[r];
-		prm[r] = prm[n];
-		prm[n] = t;
-	}
-
-	/* 4. dpll backtracking procedure */
 idpll:
 	/* pick a variable to assign */
 	if (level == nvar) {
@@ -243,6 +197,62 @@ conflict:
 			goto unit;
 		}
 	}
+}
 
-	return 0;
+int
+main()
+{
+	uint mems;
+	uint *l, *lend;
+	uint r, n, t;
+	Lit *pl;
+
+	/* 1. read in dimacs */
+	/* todo: make sure literals appear once per clause */
+	if (!indimacs(stdin, &cls, &ncls, &nvar))
+		die("could not parse dimacs");
+	printf("input %u clauses and %u variables\n", ncls, nvar);
+
+	/* 2. preprocess clauses */
+	/* todo: filter clauses already known to be true
+	 * and return unsat if a clause is empty */
+
+	/* 3. populate data structures */
+	nlit = 2*nvar;
+	lit = calloc(nlit, sizeof *lit);
+	if (!lit)
+		die("out of mem");
+	for (n=0; n<nlit; n++)
+		lit[n].cls = vnew(4, sizeof *lit[n].cls);
+	for (n=0; n<ncls; n++) {
+		l = cls[n].lit;
+		lend = &l[cls[n].nlit];
+		for (; l<lend; l++) {
+			pl = &lit[*l];
+			vgrow(&pl->cls, pl->ncls+1);
+			pl->cls[pl->ncls++] = n;
+		}
+	}
+	trail = calloc(nvar, sizeof *trail);
+	var = calloc(nvar, sizeof *var);
+
+	/* generate a random-ish permutation of the vars */
+	prm = calloc(nvar, sizeof *prm);
+	for (n=0; n<nvar; n++)
+		prm[n] = n;
+	srand(42);
+#ifndef NDEBUG
+	if (0) {
+#else
+	for (n=0; n<nvar; n++) {
+#endif
+		r = rand() % (nvar - n);
+		t = prm[r];
+		prm[r] = prm[n];
+		prm[n] = t;
+	}
+
+	/* 4. dpll backtracking procedure */
+	mems = 0;
+	return idpll(&mems);
 }
