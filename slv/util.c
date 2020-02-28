@@ -65,3 +65,55 @@ vfree(void *vec)
 	h->magic = 0;
 	free(h);
 }
+
+void
+rev(uint *a, uint *b)
+{
+	uint x;
+
+	while (b-a > 0) {
+		x = *b;
+		*b-- = *a;
+		*a++ = x;
+	}
+}
+
+/* TODO: make it work with duplicates */
+int
+nextperm(uint *a, ulng n)
+{
+	uint x;
+	ulng l; /* length of the longest increasing sequence from the end */
+	ulng i;
+
+	for (l=1; l<n && a[n-1-(l-1)]<a[n-1-l]; l++)
+		;
+	if (l == n)
+		/* we're done, that's the highest lex permutation */
+		return 0;
+	x = a[n-1-l];
+	for (i=n-1-(l-1); i<n-1; i++)
+		if (a[i+1] < x)
+			break;
+	a[n-1-l] = a[i];
+	a[i] = x;
+	rev(&a[n-1-(l-1)], &a[n-1]);
+	return 1;
+}
+
+#ifdef TEST
+#define N 4
+int
+main()
+{
+	uint a[N], i;
+
+	for (i=0; i<N; i++)
+		a[i] = i;
+	do {
+		for (i=0; i<N; i++)
+			printf("%u ", a[i]);
+		printf("\n");
+	} while (nextperm(a, N));
+}
+#endif
