@@ -9,6 +9,7 @@ struct Var {
 	uchr trl : 1; /* 1 iff in the trail */
 	uchr set : 1; /* 1 iff the variable is currently assigned */
 	uchr val : 1; /* assigned truth value */
+	Var *nxt, *prv; /* unassigned list */
 };
 
 struct Lit {
@@ -29,8 +30,7 @@ uint ncls;
 Lit *lit;
 uint nlit; /* 2*nvar */
 
-uint *prm; /* a permutation of variables */
-uint next;
+Var una; /* doubly linked unassigned list head */
 
 Var *var;
 uint nvar;
@@ -54,6 +54,8 @@ uint level;  /* if level>0; trail[level-1] is the last set literal */
 #define IsChoice(t) ((t) & 1)
 #define GetLit(t)   ((t) >> 1)
 
+#define O ++*mems
+
 int
 idpll(uint *mems)
 {
@@ -63,16 +65,19 @@ idpll(uint *mems)
 	Lit *pl;
 	Cls *pc;
 
+	level = 0;
+	for (n=0; n<nvar; n++) {
+		var[n].trl = 0;
+		var[n].set = 0;
+	}
 idpll:
+	O;
 	/* pick a variable to assign */
 	if (level == nvar) {
-		puts("sat");
+		assert(una.nxt == &una && una.prv == &una);
 		return 0;
 	}
-	do {
-		v = prm[next];
-		next = (next+1) % nvar;
-	} while (var[v].set);
+	v = una.nxt - var;
 	n = level++;
 	var[v].trl = 1;
 	if (lit[Pos(v)].ncls == 0)
@@ -87,7 +92,7 @@ idpll:
 
 	/* unit propagate the choice */
 unit:
-	for (; n<level; n++) {
+	for (; O,n<level; n++) {
 		x = GetLit(trail[n]);
 		assert(var[Var(x)].trl);
 #ifndef NDEBUG
@@ -102,7 +107,7 @@ unit:
 		pl = &lit[x];
 		c = pl->cls;
 		cend = &c[pl->ncls];
-		for (; c<cend; c++) {
+		for (; O,c<cend; c++) {
 			if (0) printf("looking at clause %u\n", *c);
 			pc = &cls[*c];
 			l = pc->lit;
@@ -115,7 +120,7 @@ unit:
 				goto search;
 			}
 			/* find another watch */
-			for (;;) {
+			for (; O,1;) {
 				if (++l == lend)
 					/* conflict! */
 					goto conflict;
@@ -136,7 +141,7 @@ unit:
 				 * trail, so we should not add it
 				 * anyway */
 				continue;
-			for (;;) {
+			for (; O,1;) {
 				if (++l == lend) {
 					var[Var(y)].trl = 1;
 					trail[level++] = Deduce(y);
@@ -155,7 +160,7 @@ unit:
 		pl = &lit[x];
 		c = pl->cls;
 		cend = &c[pl->ncls];
-		for (; c<cend; c++) {
+		for (; O,c<cend; c++) {
 			pc = &cls[*c];
 			l = pc->lit;
 			lend = &l[pc->nlit];
@@ -167,7 +172,7 @@ unit:
 				assert(var[Var(*l)].val == (*l&1));
 				continue;
 			}
-			for (; *l!=x; l++)
+			for (; O,*l!=x; l++)
 				;
 			*l = pc->lit[0];
 			pc->lit[0] = x;
@@ -175,20 +180,23 @@ unit:
 		/* finally, mark the variable as set! */
 		v = Var(x);
 		var[v].set = 1;
+		var[v].prv->nxt = var[v].nxt;
+		var[v].nxt->prv = var[v].prv;
 		var[v].val = (x&1);
 	}
 	goto idpll;
 
 conflict:
-	for (;;) {
+	for (; O,1;) {
 		if (level == 0) {
-			puts("unsat");
 			return 1;
 		}
 		n = trail[--level];
 		v = Var(GetLit(n));
 		var[v].trl = 0;
 		var[v].set = 0;
+		var[v].prv->nxt = &var[v]; /* dance! */
+		var[v].nxt->prv = &var[v];
 		if (IsChoice(n)) {
 			/* revert the choice */
 			n = level++;
@@ -200,12 +208,47 @@ conflict:
 }
 
 int
-main()
+uintcmp(const void *a, const void *b)
 {
+	return (*(uint *)a > *(uint *)b) - (*(uint *)a < *(uint *)b);
+}
+
+void
+initialize(uint *prm)
+{
+	Var *cur, *prv;
+	uint n;
+
+	/* initialize and link variables */
+	prv = &una;
+	prv->nxt = prv;
+	prv->prv = prv;
+	for (n=0; n<nvar; n++) {
+		cur = &var[prm[n]];
+		cur->trl = 0;
+		cur->set = 0;
+		cur->nxt = prv->nxt;
+		cur->prv = prv;
+		cur->prv->nxt = cur;
+		cur->nxt->prv = cur;
+	}
+
+	/* sort clauses */
+	for (n=0; n<ncls; n++)
+		qsort(cls[n].lit, cls[n].nlit, sizeof cls[n].lit[0], uintcmp);
+
+	level = 0;
+}
+
+int
+main(int ac, char *av[])
+{
+	uint *prm;
 	uint mems;
 	uint *l, *lend;
 	uint r, n, t;
 	Lit *pl;
+	int uns;
 
 	/* 1. read in dimacs */
 	/* todo: make sure literals appear once per clause */
@@ -235,11 +278,25 @@ main()
 	}
 	trail = calloc(nvar, sizeof *trail);
 	var = calloc(nvar, sizeof *var);
-
-	/* generate a random-ish permutation of the vars */
+	
 	prm = calloc(nvar, sizeof *prm);
 	for (n=0; n<nvar; n++)
 		prm[n] = n;
+
+	/* if 'x' is passed, exhaust all variable orderings
+	 * and report the mems for each */
+	if (ac>1 && strcmp(av[1], "x")==0) {
+		do {
+			initialize(prm);
+			mems = 0;
+			uns = idpll(&mems);
+			printf("%u, %d\n", mems, !uns);
+		} while (nextperm(prm, nvar));
+
+		return 0;
+	}
+
+	/* else generate a random-ish permutation of the vars */
 	srand(42);
 #ifndef NDEBUG
 	if (0) {
@@ -252,7 +309,11 @@ main()
 		prm[n] = t;
 	}
 
+
 	/* 4. dpll backtracking procedure */
+	initialize(prm);
 	mems = 0;
-	return idpll(&mems);
+	uns = idpll(&mems);
+	puts(uns ? "unsat" : "sat");
+	return uns;
 }

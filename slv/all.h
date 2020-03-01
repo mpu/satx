@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define Pos(v) (2*(v) + 1)
 #define Neg(v) (2*(v))
@@ -24,6 +25,7 @@ void die(char *) __attribute__((noreturn));
 void *vnew(ulng, size_t);
 void vgrow(void *, ulng);
 void vfree(void *);
+int nextperm(uint *, ulng);
 
 /* dimacs.c */
 int indimacs(FILE *, Cls **, uint *, uint *);
