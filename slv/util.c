@@ -78,7 +78,6 @@ rev(uint *a, uint *b)
 	}
 }
 
-/* TODO: make it work with duplicates */
 int
 nextperm(uint *a, ulng n)
 {
@@ -86,14 +85,15 @@ nextperm(uint *a, ulng n)
 	ulng l; /* length of the longest increasing sequence from the end */
 	ulng i;
 
-	for (l=1; l<n && a[n-1-(l-1)]<a[n-1-l]; l++)
-		;
+	for (l=1; l<n; l++)
+		if (a[n-1-l] < a[n-1-(l-1)])
+			break;
 	if (l == n)
 		/* we're done, that's the highest lex permutation */
 		return 0;
 	x = a[n-1-l];
 	for (i=n-1-(l-1); i<n-1; i++)
-		if (a[i+1] < x)
+		if (a[i+1] <= x)
 			break;
 	a[n-1-l] = a[i];
 	a[i] = x;
@@ -103,17 +103,30 @@ nextperm(uint *a, ulng n)
 
 #ifdef TEST
 #define N 4
-int
-main()
+void
+enumerate(uint a[])
 {
-	uint a[N], i;
+	int i;
 
-	for (i=0; i<N; i++)
-		a[i] = i;
 	do {
 		for (i=0; i<N; i++)
 			printf("%u ", a[i]);
 		printf("\n");
 	} while (nextperm(a, N));
+}
+int
+main()
+{
+	uint a[N];
+	int i;
+
+	for (i=0; i<N; i++)
+		a[i] = i;
+	enumerate(a);
+	puts("--");
+
+	for (i=0; i<N; i++)
+		a[i] = i/2;
+	enumerate(a);
 }
 #endif
