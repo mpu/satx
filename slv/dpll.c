@@ -30,7 +30,7 @@ uint ncls;
 Lit *lit;
 uint nlit; /* 2*nvar */
 
-Var una; /* doubly linked unassigned list head */
+Var *una; /* doubly linked unassigned list head (&var[0]) */
 
 Var *var;
 uint nvar;
@@ -73,11 +73,11 @@ idpll(uint *mems)
 idpll:
 	O;
 	/* pick a variable to assign */
-	if (level == nvar) {
-		assert(una.nxt == &una && una.prv == &una);
+	if (level == nvar-1) {
+		assert(una->nxt == una && una->prv == una);
 		return 0;
 	}
-	v = una.nxt - var;
+	v = una->nxt - var;
 	n = level++;
 	var[v].trl = 1;
 	if (lit[Pos(v)].ncls == 0)
@@ -220,15 +220,13 @@ initialize(uint *prm)
 	uint n;
 
 	/* initialize and link variables */
-	prv = &una;
+	una = &var[0];
+	prv = una;
 	prv->nxt = prv;
 	prv->prv = prv;
-	for (n=0; n<nvar; n++) {
-		cur = &var[prm[n]];
-		cur->trl = 0;
-		cur->set = 0;
-		cur->nxt = prv->nxt;
-		cur->prv = prv;
+	for (n=1; n<nvar; n++) {
+		cur = &var[prm[n-1]];
+		*cur = (Var){.nxt=prv->nxt, .prv=prv};
 		cur->prv->nxt = cur;
 		cur->nxt->prv = cur;
 	}
@@ -279,19 +277,19 @@ main(int ac, char *av[])
 	trail = calloc(nvar, sizeof *trail);
 	var = calloc(nvar, sizeof *var);
 	
-	prm = calloc(nvar, sizeof *prm);
-	for (n=0; n<nvar; n++)
-		prm[n] = n;
+	prm = calloc(nvar-1, sizeof *prm);
+	for (n=1; n<nvar; n++)
+		prm[n-1] = n;
 
 	/* if 'x' is passed, exhaust all variable orderings
 	 * and report the mems for each */
-	if (ac>1 && strcmp(av[1], "x")==0) {
+	if (ac>1 && (av[1][0]=='x' && !av[1][1])) {
 		do {
 			initialize(prm);
 			mems = 0;
 			uns = idpll(&mems);
 			printf("%u, %d\n", mems, !uns);
-		} while (nextperm(prm, nvar));
+		} while (nextperm(prm, nvar-1));
 
 		return 0;
 	}
@@ -301,12 +299,12 @@ main(int ac, char *av[])
 #ifndef NDEBUG
 	if (0) {
 #else
-	for (n=0; n<nvar; n++) {
+	for (n=1; n<nvar; n++) {
 #endif
 		r = rand() % (nvar - n);
 		t = prm[r];
-		prm[r] = prm[n];
-		prm[n] = t;
+		prm[r] = prm[n-1];
+		prm[n-1] = t;
 	}
 
 

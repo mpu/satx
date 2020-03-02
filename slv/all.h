@@ -2,7 +2,6 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #define Pos(v) (2*(v) + 1)
 #define Neg(v) (2*(v))
